@@ -25,6 +25,9 @@ var carParts = {
 	glass: [],
 };
 
+
+var goal = new THREE.Object3D;
+
 ////////////////////////
 
 
@@ -34,7 +37,7 @@ function init(){
 	scene.fog = new THREE.Fog( 0xd7cbb1, 1, 160 );
 
 	camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 1000);
-	camera.position.set( 3.25, 2.0, -5 );
+	// camera.position.set( 3.25, 2.0, -5 );
 
 	// create ground
 	var ground = new THREE.Mesh(
@@ -122,13 +125,13 @@ function init(){
 	stats = new Stats();
 	container.appendChild( stats.dom );
 
-	camera.position.x += 10;
+	// prob not needed
+	// camera.position.x += 10;
 
 	
 	initMaterials();
 	initCar();
 	initCar2();
-	
 	
 
 	window.addEventListener( 'resize', onWindowResize, false );
@@ -176,6 +179,11 @@ function initCar(){
 		);
 		shadow.renderOrder = 2;
 		carModel.add( shadow );
+		//goal is used to make camera movement smooth
+		goal.position.set(0, 2.5, 5);
+		carModel.add(goal);
+		camera.position.z += 4;
+		camera.position.y += 2.5;
 		scene.add( carModel );
 
 		// car parts for material selection
@@ -337,24 +345,25 @@ function update() {
 		car.update( delta / 3 );
 
 		// keep the light (and shadow) pointing in the same direction as the car rotates
+		// light should be changed to one big source for the whole map
 		lightHolder.rotation.y = -carModel.rotation.y;
 
-		// camera follow the car
-		carModel.getWorldPosition( cameraTarget );
-		cameraTarget.y = 2.5;
-		cameraTarget.z += distance;
-
-		camera.position.lerp( cameraTarget, delta * damping );
+		// camera smoothly follow the car
+		var temp = new THREE.Vector3;
+		temp.setFromMatrixPosition(goal.matrixWorld);
+		camera.position.lerp(temp, 0.3);
 
 		
 		camera.lookAt( carModel.position );
-
 	}
 
 	if ( carModel2 )
 		car2.update( delta / 3 );
 
 	stats.update();
+
+
+	console.log(car.getOrientation);
 
 }
 
