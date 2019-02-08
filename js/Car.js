@@ -257,7 +257,7 @@ THREE.Car = ( function ( ) {
 		speedDecay(delta){
 			if ( this.speed > 0 ) {
 
-				var k = exponentialEaseOut( this.speed / this.maxSpeed );
+				var k = exponentialEaseOut( this.speed / this.maxSpeed / 2);
 				this.speed = THREE.Math.clamp( this.speed - k * delta * deceleration * brakingDeceleration, 0, this.maxSpeed );
 				acceleration = THREE.Math.clamp( acceleration - k * delta, 0, 1 );
 			} 
