@@ -1,5 +1,5 @@
 //////// global variables //////////////
-var camera, scene, renderer, stats, carModel, materialsLib, envMap, ambientLight;
+var camera, scene, renderer, stats, carModel, carModel2, materialsLib, envMap, ambientLight;
 
 var clock = new THREE.Clock();
 
@@ -11,7 +11,6 @@ distance = 5;
 
 var car2 = new THREE.Car2();
 var car = new THREE.Car();
-var carModel2;
 var carParts2 = {
 	body: [],
 	rims:[],
@@ -25,29 +24,73 @@ var carParts = {
 	glass: [],
 };
 
+var cameraGoal = new THREE.Object3D;
 
-var goal = new THREE.Object3D;
+var box1, box2;
+var shape;
 
-////////////////////////
+var mesh;
+var mesh2;
+var vehicle;
+var vehicle2;
+
+var box;
+var test;
+
+var prevPos = new THREE.Vector3(0, 0, 0);
+
+'use strict';
+Physijs.scripts.worker = 'js/physics/physijs_worker.js';
+Physijs.scripts.ammo = 'ammo.js';
 
 
 function init(){
-	scene = new THREE.Scene();
+	TWEEN.start();
+
+	scene = new Physijs.Scene({ fixedTimeStep: 1 / 120 });
+	scene.setGravity(new THREE.Vector3(0, -30, 0));
+	scene.addEventListener(
+		'update',
+		function(){
+			scene.simulate(undefined, 1);
+			stats.update();
+		}
+	);
 	// making fog
 	scene.fog = new THREE.Fog( 0xd7cbb1, 1, 160 );
 
 	camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 1000);
-	// camera.position.set( 3.25, 2.0, -5 );
 
-	// create ground
-	var ground = new THREE.Mesh(
-		new THREE.PlaneBufferGeometry( 50, 2000),
-		new THREE.MeshPhongMaterial( { color: 0xffffff, opacity: 0.15, depthWrite: false }
-	) );
-	// normaly ground is created in Y axis
+	var ground_material = Physijs.createMaterial( 
+			new THREE.MeshLambertMaterial({ map: THREE.ImageUtils.loadTexture( 'textures/ground/rocks.jpg' ) }),
+		0.6,  	//friction
+		0.3		//restitution
+	);
+	ground_material.map.wrapS = ground_material.map.wrapT = THREE.RepeatWrapping;
+	ground_material.map.repeat.set( 25, 100 );
+
+	ground = new Physijs.BoxMesh(
+		new THREE.CubeGeometry( 500, 2000, 1),
+		//new THREE.PlaneGeometry(50, 50),
+		ground_material,
+		0 // mass
+	);
+
+	box = new Physijs.BoxMesh(
+		new THREE.CubeGeometry(4, 4, 100),
+		ground_material,
+		0
+	);
+	box.position.z += 50;
+	box.setCcdMotionThreshold(1);
+	box.setCcdSweptSphereRadius(0.2);
+	scene.add(box);
+
+	// by default ground is created in Y axis
 	ground.rotation.x = - Math.PI / 2;
 	ground.receiveShadow = true;
 	ground.renderOrder = 1;
+	ground.position.y -= 0.5;
 	scene.add( ground );
 
 	// adding nice grid to the ground - prob we will use texture anyway, so...
@@ -59,7 +102,7 @@ function init(){
 
 
 	// global light 
-	ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+	ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
 	scene.add(ambientLight);
 
 	var hemiLight = new THREE.HemisphereLight( 0x7c849b, 0xd7cbb1, 0.1 );
@@ -67,7 +110,7 @@ function init(){
 	scene.add( hemiLight );
 
 	// will be used to follow the car
-	var shadowLight  = new THREE.DirectionalLight( 0xffffee, 0.1 );
+	var shadowLight  = new THREE.DirectionalLight( 0xffffee, 0.5 );
 	shadowLight.position.set( -1.5, 1.25, -1.5 );
 	shadowLight.castShadow = true;
 	shadowLight.shadow.width = 512;
@@ -104,7 +147,7 @@ function init(){
 	    objLoader.setPath('models/obj/');
 	    objLoader.load('r2-d2.obj', function (object) {
 	 		object.position.y -= 60;
-	 		object.position.z -= 1000;
+	 		object.position.z += 1000;
 	 		object.castShadow = true;
 	 		object.receiveShadow = true;
 	        scene.add(object);
@@ -123,19 +166,37 @@ function init(){
 	container.appendChild( renderer.domElement );
 
 	stats = new Stats();
-	container.appendChild( stats.dom );
+	container.appendChild( stats.domElement );
 
-	// prob not needed
-	// camera.position.x += 10;
-
-	
+	initCarPhysicsMaterials();
 	initMaterials();
 	initCar();
 	initCar2();
-	
+
+
+	var mat2 = Physijs.createMaterial(
+		new THREE.MeshLambertMaterial({ color: 0xff0000, opacity: 1, transparent: true }),
+		.9, // low friction
+		.3 // high restitution
+	);
+
+	var box2 = new THREE.CubeGeometry( 2, 1, 4 );
+	test = new Physijs.BoxMesh(
+		box2,
+		mat2,
+		1
+	);
+	test.position.z -= 200;
+	test.position.y = 1;
+	scene.add(test);
+	var rotation_matrix = new THREE.Matrix4().extractRotation(test.matrix);
+	var force_vector = new THREE.Vector3(0 , 0, 300 ).applyMatrix4(rotation_matrix);
+	test.applyCentralImpulse(force_vector);
+
+
+	scene.simulate();
 
 	window.addEventListener( 'resize', onWindowResize, false );
-
 
 	renderer.setAnimationLoop( function() {
 		update();
@@ -144,16 +205,37 @@ function init(){
 	} );
 }
 
+function initCarPhysicsMaterials(){
+	mat = Physijs.createMaterial(
+	new THREE.MeshLambertMaterial({ color: 0xffffff, opacity: 0, transparent: true }),
+		.9, // low friction
+		.3 // high restitution
+	);
+
+	box = new THREE.CubeGeometry( 2, 1, 4 );
+	carModel = new Physijs.BoxMesh(
+		box,
+		mat,
+		1
+	);
+	carModel2 = new Physijs.BoxMesh(
+		box,
+		mat,
+		1
+	);
+}
+
 function initCar(){
 	THREE.DRACOLoader.setDecoderPath( 'js/libs/draco/' );
-
 	var loader = new THREE.GLTFLoader();
 	loader.setDRACOLoader( new THREE.DRACOLoader() );
 
 	loader.load( 'models/gltf/ferrari.glb', function( gltf ) {
-
-		carModel = gltf.scene.children[ 0 ];
-
+		carModel.position.set(0, 10, -50);
+		
+		var model = gltf.scene.children[ 0 ];
+		model.position.y -= 0.5;
+		carModel.add(model);
 		// add lightHolder to car so that the shadow will track the car as it moves
 		carModel.add( lightHolder );
 		carModel.position.x += 5;
@@ -166,7 +248,6 @@ function initCar(){
 				child.castShadow = true;
 				child.receiveShadow = true;
 				child.material.envMap = envMap;
-
 			}
 
 		} );
@@ -177,11 +258,13 @@ function initCar(){
 			new THREE.PlaneBufferGeometry( 0.655 * 4, 1.3 * 4 ).rotateX( - Math.PI / 2 ),
 			new THREE.MeshBasicMaterial( { map: texture, opacity: 0.8, transparent: true } )
 		);
+		shadow.position.y += 0.01;
 		shadow.renderOrder = 2;
 		carModel.add( shadow );
 		//goal is used to make camera movement smooth
-		goal.position.set(0, 2.5, 5);
-		carModel.add(goal);
+		cameraGoal.position.set(0, 2.5, 5);
+		carModel.add(cameraGoal);
+		carModel.rotation.set(0, Math.PI, 0);
 		camera.position.z += 4;
 		camera.position.y += 2.5;
 		scene.add( carModel );
@@ -202,23 +285,24 @@ function initCar(){
 		 );
 
 		updateMaterials();
-
 	});
 }
 
 // TODO nice function that initialize both cars
 function initCar2(){
 	THREE.DRACOLoader.setDecoderPath( 'js/libs/draco/' );
-
 	var loader = new THREE.GLTFLoader();
 	loader.setDRACOLoader( new THREE.DRACOLoader() );
 
 	loader.load( 'models/gltf/ferrari.glb', function( gltf ) {
-
-		carModel2 = gltf.scene.children[ 0 ];
-
+		carModel2.position.set(-4.5, 10, -50);
+		
+		var model = gltf.scene.children[ 0 ];
+		model.position.y -= 0.5;
+		carModel2.add(model);
 		// add lightHolder to car so that the shadow will track the car as it moves
-		carModel2.add( lightHolder );
+		// carModel2.add( lightHolder );
+		carModel2.position.x += 5;
 
 		car2.setModel( carModel2 );
 		carModel2.traverse( function ( child ) {
@@ -228,7 +312,6 @@ function initCar2(){
 				child.castShadow = true;
 				child.receiveShadow = true;
 				child.material.envMap = envMap;
-
 			}
 
 		} );
@@ -239,8 +322,13 @@ function initCar2(){
 			new THREE.PlaneBufferGeometry( 0.655 * 4, 1.3 * 4 ).rotateX( - Math.PI / 2 ),
 			new THREE.MeshBasicMaterial( { map: texture, opacity: 0.8, transparent: true } )
 		);
+		shadow.position.y += 0.01;
 		shadow.renderOrder = 2;
 		carModel2.add( shadow );
+		//goal is used to make camera movement smooth
+		// cameraGoal.position.set(0, 2.5, 5);
+		// carModel2.add(cameraGoal);
+		carModel2.rotation.set(0, Math.PI, 0);
 		scene.add( carModel2 );
 
 		// car parts for material selection
@@ -259,7 +347,6 @@ function initCar2(){
 		 );
 
 		updateMaterials2();
-
 	});
 }
 
@@ -339,10 +426,36 @@ function update() {
 
 	var delta = clock.getDelta();
 
+	// if (vehicle){
+	// 	vehicle.applyEngineForce( 300 );
+	// 	mesh.position.x += 5;
+	// // 	vehicle.position.z += 0.5;
+	// }	
+
+
 	if ( carModel ) {
+
+		// mesh.position.set(0,0,0);
+		// mesh.position.z += 0.1;
+		// mesh.setLinearVelocity(new THREE.Vector3(0, 0, -2));
+		//--------------------------------
+		// var rotation_matrix = new THREE.Matrix4().extractRotation(mesh.matrix);
+		// var force_vector = new THREE.Vector3(0, 0, -1).applyMatrix4(rotation_matrix);
+		// mesh.applyCentralImpulse(force_vector);
+		//--------------------------------
+
+		// var rotation_matrix = new THREE.Matrix4().extractRotation(carModel.matrix);
+		// var force_vector = new THREE.Vector3(0, 0, -1).applyMatrix4(rotation_matrix);
+		// carModel.applyCentralImpulse(force_vector);
+
+		// mesh.__dirtyPosition = true;
 
 		// dont know why / 3
 		car.update( delta / 3 );
+
+		// vehicle.applyEngineForce(300);
+		// shape.position.copy(carModel.position);
+		// shape.position.y += 1;
 
 		// keep the light (and shadow) pointing in the same direction as the car rotates
 		// light should be changed to one big source for the whole map
@@ -350,21 +463,30 @@ function update() {
 
 		// camera smoothly follow the car
 		var temp = new THREE.Vector3;
-		temp.setFromMatrixPosition(goal.matrixWorld);
+		temp.setFromMatrixPosition(cameraGoal.matrixWorld);
 		camera.position.lerp(temp, 0.3);
-
+		// camera.position.y += 5;
+		// camera.position.z += 5;
+		// camera.position.lerp(test.position, 1);
+		// camera.position.lerp(temp, 0.3);
+		// camera.position.x += 3;
 		
 		camera.lookAt( carModel.position );
+
+		// console.log(car.getOrientation);
+
+		// if(carModel.position.y > .75)
+		// 	carModel.position.y = .75;
+
+		if (camera.position.y < 0 )
+			camera.position.y = 1;
+
 	}
 
 	if ( carModel2 )
 		car2.update( delta / 3 );
 
 	stats.update();
-
-
-	console.log(car.getOrientation);
-
 }
 
 // start of everything :O

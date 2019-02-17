@@ -1,4 +1,15 @@
-THREE.Car2 = ( function ( ) {
+/**
+ * @author alteredq / http://alteredqualia.com/
+ * @author Lewy Blue https://github.com/looeee
+ *
+ * The model is expected to follow real world car proportions. You can try unusual car types
+ * but your results may be unexpected. Scaled models are also not supported.
+ *
+ * Defaults are rough estimates for a real world scale car model
+ *
+ */
+
+THREE.Car = ( function ( ) {
 
 	// private variables
 	var steeringWheelSpeed = 4.5;
@@ -8,10 +19,11 @@ THREE.Car2 = ( function ( ) {
 
 	var maxSpeedReverse, accelerationReverse, deceleration;
 
-	var controlKeys = { LEFT: 65, UP: 87, RIGHT: 68, DOWN: 83, BRAKE: 67 };
+	var controlKeys = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, BRAKE: 32 };
 
 	var wheelOrientation = 0;
-	var carOrientation = Math.PI;
+	var carOrientation = 0;
+	var carYAxisOrientation = 0;
 
 	var root = null;
 
@@ -42,11 +54,8 @@ THREE.Car2 = ( function ( ) {
 
 	var brakingDeceleration = 2;
 
-	var variableToPrint ;
-
-	var xVelocity = 0;
-	var yVelocity = 0;
-	var zVelocity = 0;
+	var axisX = 0;
+	var axisZ = 0;
 
 	function Car( maxSpeed, acceleration, brakePower, turningRadius, keys ) {
 
@@ -148,12 +157,6 @@ THREE.Car2 = ( function ( ) {
 
 			if ( ! loaded || ! this.enabled ) return;
 
-			// basic movement
-
-			xVelocity = root.getLinearVelocity().x;
-			yVelocity = root.getLinearVelocity().y;
-			zVelocity = root.getLinearVelocity().z;
-			variableToPrint = root.getLinearVelocity().length();
 
 			if ( controls.brake )
 				this.brake(delta);
@@ -164,24 +167,80 @@ THREE.Car2 = ( function ( ) {
 			if ( controls.moveBackward )
 				this.moveBackward(delta);
 			
-			// wheels orientation
+
 			if ( controls.moveLeft )
 				wheelOrientation = THREE.Math.clamp( wheelOrientation + delta * steeringWheelSpeed, - maxSteeringRotation, maxSteeringRotation );
 
 			if ( controls.moveRight ) 
 				wheelOrientation = THREE.Math.clamp( wheelOrientation - delta * steeringWheelSpeed, - maxSteeringRotation, maxSteeringRotation );
 
+
+			// this.speed decay
+			if ( ! ( controls.moveForward || controls.moveBackward ) ) {
+				this.speedDecay(delta);
+			}
+
 			// steering decay
 			if ( ! ( controls.moveLeft || controls.moveRight ) ) {
 				this.steeringDecay(delta);
 			}
 
-//TODO change rotation when moving backward
-			// .lenght() is like sqrt( x^2 + z^2 )
-			carOrientation += root.getLinearVelocity().length() * this.turningRadius * 0.02 * wheelOrientation / 300;
+ 
+			var forwardDelta = - this.speed * delta;
+
+			carOrientation -= ( forwardDelta * this.turningRadius * 0.02 ) * wheelOrientation;
+
+			if(root.rotation != undefined)
+				carYAxisOrientation = root.rotation.y;
+
+			// movement of car
+			root.position.x += Math.sin( carOrientation ) * forwardDelta * length;
+			root.position.z += Math.cos( carOrientation ) * forwardDelta * length;
+			root.__dirtyPosition = true;
+			// root.__dirtyRotation = true;
+
+///////////////
+// 			axisX += Math.sin( carOrientation ) * forwardDelta * length;
+// 			axisZ += Math.cos( carOrientation ) * forwardDelta * length;
+
+// 			// root.setLinearVelocity({x: axisX, y: root.getLinearVelocity().y, z: axisZ});
+// ///////////////
+
+// 			var rotation_matrix = new THREE.Matrix4().extractRotation(carModel.matrix);
+// 			var force_vector = new THREE.Vector3(axisX , 0, axisZ ).applyMatrix4(rotation_matrix);
+// 			root.applyCentralImpulse(force_vector);
+
+			// if (root.getLinearVelocity().x > 30)
+			// 	root.setLinearVelocity({x: 30, y: root.getLinearVelocity().y, z:root.getLinearVelocity().z});
+			// if (root.getLinearVelocity().y > 30)
+			// 	root.setLinearVelocity({x: root.getLinearVelocity().y, y: 30, z:root.getLinearVelocity().z});
+			// if (root.getLinearVelocity().z > 30)
+			// 	root.setLinearVelocity({x: root.getLinearVelocity().y, y: root.getLinearVelocity().y, z: 30});
+
+			// if (root.getLinearVelocity().x < -30)
+			// 	root.setLinearVelocity({x: -30, y: root.getLinearVelocity().y, z:root.getLinearVelocity().z});
+			// if (root.getLinearVelocity().y < -30)
+			// 	root.setLinearVelocity({x: root.getLinearVelocity().y, y: -30, z:root.getLinearVelocity().z});
+			// if (root.getLinearVelocity().z < -30)
+			// 	root.setLinearVelocity({x: root.getLinearVelocity().y, y: root.getLinearVelocity().y, z: -30});
+
+			// if (root.getLinearVelocity().z > 0){
+			// 	var resistanceForce = new THREE.Vector3(0, 0, -10).applyMatrix4(rotation_matrix);
+			// 	root.applyCentralImpulse(resistanceForce);
+			// }
 
 			// angle of car
-			root.rotation.set(0, carOrientation, 0);
+			root.rotation.y = carOrientation;
+
+			// wheels rolling
+			var angularSpeedRatio = - 2 / wheelDiameter;
+
+			var wheelDelta = forwardDelta * angularSpeedRatio * length;
+
+			frontLeftWheel.rotation[ this.wheelRotationAxis ] -= wheelDelta;
+			frontRightWheel.rotation[ this.wheelRotationAxis ] -= wheelDelta;
+			backLeftWheel.rotation[ this.wheelRotationAxis ] -= wheelDelta;
+			backRightWheel.rotation[ this.wheelRotationAxis ] -= wheelDelta;
 
 			// rotation while steering
 			frontLeftWheelRoot.rotation[ this.wheelTurnAxis ] = wheelOrientation;
@@ -190,113 +249,65 @@ THREE.Car2 = ( function ( ) {
 			steeringWheel.rotation[ this.steeringWheelTurnAxis ] = -wheelOrientation * 6;
 		},
 
-		animateWheels(movementDelta){
-			var angularSpeedRatio = - 2 / wheelDiameter;
-
-			var wheelDelta = movementDelta * angularSpeedRatio * length;
-
-			frontLeftWheel.rotation[ this.wheelRotationAxis ] -= wheelDelta;
-			frontRightWheel.rotation[ this.wheelRotationAxis ] -= wheelDelta;
-			backLeftWheel.rotation[ this.wheelRotationAxis ] -= wheelDelta;
-			backRightWheel.rotation[ this.wheelRotationAxis ] -= wheelDelta;
-		},
-
 		brake( delta ){
-//TODO fix these functions			
-			// this.brakeX();
+			brakingDeceleration = this.brakePower;
+			this.speed = THREE.Math.clamp( this.speed - delta * accelerationReverse, maxSpeedReverse, this.maxSpeed );
 
-			// this.brakeZ();
-
-
-			var movementDelta = 0;
-			this.animateWheels(movementDelta);
-
-// old version - might be useful if we want to improve this one
-			// brakingDeceleration = this.brakePower;
-			// this.speed = THREE.Math.clamp( this.speed - delta * accelerationReverse, maxSpeedReverse, this.maxSpeed );
-
-			// if (this.speed > 0)
-			// 	acceleration = THREE.Math.clamp( acceleration - delta, - 1, 1 );
-			// 	// because another way car was moving backward, dont know why
-			// else if (this.speed > -1)
-			// 	this.speed = 0;
-			// 	// but if car has some speed backward breaks will work normally
-			// else{
-			// 	acceleration = THREE.Math.clamp( acceleration - delta, - 1, 1 );
-			// }
-		},
-
-		brakeX(){
-			if (xVelocity >= 0.5)
-				root.setLinearVelocity({x: xVelocity - 0.5, y: yVelocity, z: zVelocity});
-			else if(xVelocity < -0.5)
-				root.setLinearVelocity({x: xVelocity + 0.5, y: yVelocity, z: zVelocity});
-			else
-				root.setLinearVelocity({x: 0, y: yVelocity, z: root.getLinearVelocity().z});
-		},
-
-		brakeZ(){
-			if (zVelocity >= 0.5)
-				root.setLinearVelocity({x: xVelocity, y: yVelocity, z: zVelocity - 0.5});
-			else if (zVelocity < -0.5)
-				root.setLinearVelocity({x: xVelocity, y: yVelocity, z: zVelocity + 0.5});
-			else
-				root.setLinearVelocity({x: root.getLinearVelocity().x, y: yVelocity, z: 0});
+			if (this.speed > 0)
+				acceleration = THREE.Math.clamp( acceleration - delta, - 1, 1 );
+				// because another way car was moving backward, dont know why
+			else if (this.speed > -1)
+				this.speed = 0;
+				// but if car has some speed backward breaks will work normally
+			else{
+				acceleration = THREE.Math.clamp( acceleration - delta, - 1, 1 );
+			}
 		},
 
 
 		moveBackward(delta){
-			var rotation_matrix = new THREE.Matrix4().extractRotation(root.matrix);
-			var force_vector = new THREE.Vector3(0 , 0, 0.25 ).applyMatrix4(rotation_matrix);
-			root.applyCentralImpulse(force_vector);
-			this.limitSpeed();
+			// braking if car is moving
+			if (this.speed > 1){
+				// breaking
+				this.brake(delta);
 
-			var movementDelta = root.getLinearVelocity().length() / 600;
-			this.animateWheels(movementDelta);
+				// nothing - something like car speed resistance
+				this.speedDecay(delta);
+			}
 
-//oldie
-			// // braking if car is moving
-			// if (this.speed > 1){
-			// 	// breaking
-			// 	this.brake(delta);
-
-			// 	// nothing - something like car speed resistance
-			// 	this.speedDecay(delta);
-			// }
-
-			// else{
-			// 	this.speed = THREE.Math.clamp( this.speed - delta * accelerationReverse, maxSpeedReverse, this.maxSpeed );
-			// 	acceleration = THREE.Math.clamp( acceleration - delta, - 1, 1 );
-			// }
+			else{
+				this.speed = THREE.Math.clamp( this.speed - delta * accelerationReverse, maxSpeedReverse, this.maxSpeed );
+				acceleration = THREE.Math.clamp( acceleration - delta, - 1, 1 );
+			}
 		},
 
 
 		moveForward(delta){
-			var rotation_matrix = new THREE.Matrix4().extractRotation(root.matrix);
-			var force_vector = new THREE.Vector3(0 , 0, -0.5 ).applyMatrix4(rotation_matrix);
-			root.applyCentralImpulse(force_vector);
-			this.limitSpeed();
+			if (this.speed < -1)
+				this.speedDecay(delta);
 
-			var movementDelta = - root.getLinearVelocity().length() / 600;
-			this.animateWheels(movementDelta);
+			else{
+				this.speed = THREE.Math.clamp( this.speed + delta * this.acceleration, maxSpeedReverse, this.maxSpeed );
+				acceleration = THREE.Math.clamp( acceleration + delta, - 1, 1 );
+			}
 		},
 
 
-		limitSpeed(){
-			if (xVelocity > 30)
-				root.setLinearVelocity({x: 30, y: yVelocity, z: zVelocity});
-			if (yVelocity > 30)
-				root.setLinearVelocity({x: xVelocity, y: 30, z: zVelocity});
-			if (zVelocity > 30)
-				root.setLinearVelocity({x: xVelocity, y: yVelocity, z: 30});
+		speedDecay(delta){
+			if ( this.speed > 0 ) {
 
-			if (xVelocity < -30)
-				root.setLinearVelocity({x: -30, y: yVelocity, z: zVelocity});
-			if (yVelocity < -30)
-				root.setLinearVelocity({x: xVelocity, y: -30, z: zVelocity});
-			if (zVelocity < -30)
-				root.setLinearVelocity({x: xVelocity, y: yVelocity, z: -30});
+				var k = exponentialEaseOut( this.speed / this.maxSpeed / 2);
+				this.speed = THREE.Math.clamp( this.speed - k * delta * deceleration * brakingDeceleration, 0, this.maxSpeed );
+				acceleration = THREE.Math.clamp( acceleration - k * delta, 0, 1 );
+			} 
+			else {
+
+				var k = exponentialEaseOut( this.speed / maxSpeedReverse );
+				this.speed = THREE.Math.clamp( this.speed + k * delta * accelerationReverse * brakingDeceleration, maxSpeedReverse, 0 );
+				acceleration = THREE.Math.clamp( acceleration + k * delta, - 1, 0 );
+			}
 		},
+
 
 		steeringDecay(delta){
 			if ( wheelOrientation > 0 ) 
@@ -309,8 +320,7 @@ THREE.Car2 = ( function ( ) {
 
 		setModel( model, elemNames ) {
 
-			if ( elemNames ) 
-				this.elemNames = elemNames;
+			if ( elemNames ) this.elemNames = elemNames;
 
 			root = model;
 
@@ -329,13 +339,10 @@ THREE.Car2 = ( function ( ) {
 			backLeftWheel = root.getObjectByName( this.elemNames.rlWheel );
 			backRightWheel = root.getObjectByName( this.elemNames.rrWheel );
 
-			if ( this.elemNames.steeringWheel !== null ) 
-				steeringWheel = root.getObjectByName( this.elemNames.steeringWheel );
+			if ( this.elemNames.steeringWheel !== null ) steeringWheel = root.getObjectByName( this.elemNames.steeringWheel );
 
-			while ( frontLeftWheelRoot.children.length > 0 ) 
-				frontLeftWheel.add( frontLeftWheelRoot.children[ 0 ] );
-			while ( frontRightWheelRoot.children.length > 0 ) 
-				frontRightWheel.add( frontRightWheelRoot.children[ 0 ] );
+			while ( frontLeftWheelRoot.children.length > 0 ) frontLeftWheel.add( frontLeftWheelRoot.children[ 0 ] );
+			while ( frontRightWheelRoot.children.length > 0 ) frontRightWheel.add( frontRightWheelRoot.children[ 0 ] );
 
 			frontLeftWheelRoot.add( frontLeftWheel );
 			frontRightWheelRoot.add( frontRightWheel );
@@ -360,8 +367,8 @@ THREE.Car2 = ( function ( ) {
 		},
 
 		get getOrientation(){
-			return variableToPrint;
-		}
+			return carYAxisOrientation;
+	}
 	};
 
 
