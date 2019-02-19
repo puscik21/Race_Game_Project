@@ -24,7 +24,11 @@ var carParts = {
 	glass: [],
 };
 
+// both used to make camera follow smootly the car
 var cameraGoal = new THREE.Object3D;
+var cameraGoal2 = new THREE.Object3D;
+var temp = new THREE.Vector3;
+var temp2 = new THREE.Vector3;
 
 var box1, box2;
 var shape;
@@ -37,7 +41,46 @@ var vehicle2;
 var box;
 var test;
 
-var prevPos = new THREE.Vector3(0, 0, 0);
+var windowWidth;
+var	windowHeight;
+
+var views = [
+	{
+		left: 0,
+		top: 0,
+		width: 1,
+		height: 0.5,
+		background: new THREE.Color( 0, 0, 0 ),
+		eye: [ 0, 0, 0 ],
+		up: [ 0, 1, 0 ],
+		fov: 45,
+		updateCamera: function ( camera, target, temp) {
+
+			camera.position.z -= 1;
+			camera.position.y -= 0.25;
+			camera.lookAt( target.position );
+			camera.position.lerp(temp, 0.3);
+		}
+	},
+	{
+		left: 0,
+		top: 0.5,
+		width: 1,
+		height: 0.5,
+		background: new THREE.Color( 0, 0, 0 ),
+		eye: [ 0, 0, 0 ],
+		up: [ 0, 1, 0 ],
+		fov: 45,
+		updateCamera: function ( camera, target, temp ) {
+
+			camera.position.z -= 1;
+			camera.position.y -= 0.25;
+			camera.lookAt( target.position );
+			camera.position.lerp(temp, 0.3);
+
+		}
+	}
+];
 
 'use strict';
 Physijs.scripts.worker = 'js/physics/physijs_worker.js';
@@ -59,7 +102,17 @@ function init(){
 	// making fog
 	scene.fog = new THREE.Fog( 0xd7cbb1, 1, 160 );
 
-	camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 1000);
+	// camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+	for ( var i = 0; i < views.length; ++ i ) {
+		var view = views[ i ];
+		var camera = new THREE.PerspectiveCamera( view.fov, window.innerWidth / window.innerHeight, 0.1, 1000 );
+
+		camera.position.fromArray( view.eye );
+		camera.up.fromArray( view.up );
+		view.camera = camera;
+	}
+
 
 	var ground_material = Physijs.createMaterial( 
 			new THREE.MeshLambertMaterial({ map: THREE.ImageUtils.loadTexture( 'textures/ground/rocks.jpg' ) }),
@@ -132,8 +185,6 @@ function init(){
 
 	scene.background = envMap;
 	
-
-	
 	// big R2-D2 object
 	var mtlLoader = new THREE.MTLLoader();
 	mtlLoader.setTexturePath('models/obj/');
@@ -196,23 +247,22 @@ function init(){
 
 	scene.simulate();
 
-	window.addEventListener( 'resize', onWindowResize, false );
+	// window.addEventListener( 'resize', onWindowResize, false );
 
 	renderer.setAnimationLoop( function() {
 		update();
-		renderer.render( scene, camera );
-
+		render();
 	} );
 }
 
 function initCarPhysicsMaterials(){
 	mat = Physijs.createMaterial(
 	new THREE.MeshLambertMaterial({ color: 0xffffff, opacity: 0, transparent: true }),
-		.9, // low friction
-		.3 // high restitution
+		.9, // friction
+		.3 // restitution
 	);
 
-	box = new THREE.CubeGeometry( 2, 1, 4 );
+	box = new THREE.CubeGeometry( 2, 1, 4.4 );
 	carModel = new Physijs.BoxMesh(
 		box,
 		mat,
@@ -237,20 +287,20 @@ function initCar(){
 		model.position.y -= 0.5;
 		carModel.add(model);
 		// add lightHolder to car so that the shadow will track the car as it moves
-		carModel.add( lightHolder );
+		// carModel.add( lightHolder );
 		carModel.position.x += 5;
 
 		car.setModel( carModel );
+
 		carModel.traverse( function ( child ) {
 
 			if ( child.isMesh  ) {
-
 				child.castShadow = true;
 				child.receiveShadow = true;
 				child.material.envMap = envMap;
 			}
-
 		} );
+		carModel.castShadow = false;
 
 		// texture of this fancy shadow under the car
 		var texture = new THREE.TextureLoader().load( 'models/gltf/ferrari_ao.png' );
@@ -265,8 +315,8 @@ function initCar(){
 		cameraGoal.position.set(0, 2.5, 5);
 		carModel.add(cameraGoal);
 		carModel.rotation.set(0, Math.PI, 0);
-		camera.position.z += 4;
-		camera.position.y += 2.5;
+		// camera.position.z += 4;
+		// camera.position.y += 2.5;
 		scene.add( carModel );
 
 		// car parts for material selection
@@ -295,7 +345,7 @@ function initCar2(){
 	loader.setDRACOLoader( new THREE.DRACOLoader() );
 
 	loader.load( 'models/gltf/ferrari.glb', function( gltf ) {
-		carModel2.position.set(-4.5, 10, -50);
+		carModel2.position.set(-6.5, 10, -50);
 		
 		var model = gltf.scene.children[ 0 ];
 		model.position.y -= 0.5;
@@ -313,6 +363,7 @@ function initCar2(){
 				child.receiveShadow = true;
 				child.material.envMap = envMap;
 			}
+			carModel2.castShadow = false;
 
 		} );
 
@@ -326,8 +377,8 @@ function initCar2(){
 		shadow.renderOrder = 2;
 		carModel2.add( shadow );
 		//goal is used to make camera movement smooth
-		// cameraGoal.position.set(0, 2.5, 5);
-		// carModel2.add(cameraGoal);
+		cameraGoal2.position.set(0, 2.5, 5);
+		carModel2.add(cameraGoal2);
 		carModel2.rotation.set(0, Math.PI, 0);
 		scene.add( carModel2 );
 
@@ -408,10 +459,12 @@ function updateMaterials2() {
 
 function onWindowResize() {
 
-	camera.aspect = window.innerWidth / window.innerHeight;
-	camera.updateProjectionMatrix();
+	// camera.aspect = window.innerWidth / window.innerHeight;
+	// camera.updateProjectionMatrix();
+	windowWidth = window.innerWidth;
+	windowHeight = window.innerHeight;
 
-	renderer.setSize( window.innerWidth, window.innerHeight );
+	renderer.setSize( windowWidth, windowHeight );
 
 }
 
@@ -426,67 +479,79 @@ function update() {
 
 	var delta = clock.getDelta();
 
-	// if (vehicle){
-	// 	vehicle.applyEngineForce( 300 );
-	// 	mesh.position.x += 5;
-	// // 	vehicle.position.z += 0.5;
-	// }	
-
-
 	if ( carModel ) {
 
-		// mesh.position.set(0,0,0);
-		// mesh.position.z += 0.1;
-		// mesh.setLinearVelocity(new THREE.Vector3(0, 0, -2));
-		//--------------------------------
-		// var rotation_matrix = new THREE.Matrix4().extractRotation(mesh.matrix);
-		// var force_vector = new THREE.Vector3(0, 0, -1).applyMatrix4(rotation_matrix);
-		// mesh.applyCentralImpulse(force_vector);
-		//--------------------------------
-
-		// var rotation_matrix = new THREE.Matrix4().extractRotation(carModel.matrix);
-		// var force_vector = new THREE.Vector3(0, 0, -1).applyMatrix4(rotation_matrix);
-		// carModel.applyCentralImpulse(force_vector);
-
-		// mesh.__dirtyPosition = true;
-
-		// dont know why / 3
-		car.update( delta / 3 );
-
-		// vehicle.applyEngineForce(300);
-		// shape.position.copy(carModel.position);
-		// shape.position.y += 1;
+		car.update( delta );
 
 		// keep the light (and shadow) pointing in the same direction as the car rotates
 		// light should be changed to one big source for the whole map
 		lightHolder.rotation.y = -carModel.rotation.y;
 
 		// camera smoothly follow the car
-		var temp = new THREE.Vector3;
 		temp.setFromMatrixPosition(cameraGoal.matrixWorld);
-		camera.position.lerp(temp, 0.3);
-		// camera.position.y += 5;
-		// camera.position.z += 5;
-		// camera.position.lerp(test.position, 1);
+		temp2.setFromMatrixPosition(cameraGoal2.matrixWorld);
+
 		// camera.position.lerp(temp, 0.3);
-		// camera.position.x += 3;
 		
-		camera.lookAt( carModel.position );
+		// camera.lookAt( carModel.position );
 
 		// console.log(car.getOrientation);
 
-		// if(carModel.position.y > .75)
-		// 	carModel.position.y = .75;
-
-		if (camera.position.y < 0 )
-			camera.position.y = 1;
-
+		// if (camera.position.y < 0 )
+		// 	camera.position.y = 1;
 	}
 
 	if ( carModel2 )
-		car2.update( delta / 3 );
+		car2.update( delta );
 
 	stats.update();
+}
+
+function render() {
+
+	updateSize();
+
+	for ( var i = 0; i < views.length; ++ i ) {
+
+		var view = views[ i ];
+		var camera = view.camera;
+
+		if (i == 0)
+			view.updateCamera( camera, carModel, temp );
+		else if (i == 1)
+			view.updateCamera(camera, carModel2, temp2);
+
+
+		var left = Math.floor( windowWidth * view.left );
+		var top = Math.floor( windowHeight * view.top );
+		var width = Math.floor( windowWidth * view.width );
+		var height = Math.floor( windowHeight * view.height );
+
+		renderer.setViewport( left, top, width, height );
+		renderer.setScissor( left, top, width, height );
+		renderer.setScissorTest( true );
+		renderer.setClearColor( view.background );
+
+
+		camera.aspect = width / height;
+		camera.updateProjectionMatrix();
+
+		renderer.render( scene, camera );
+
+	}
+}
+
+// prob listener is enough
+function updateSize() {
+
+	if ( windowWidth != window.innerWidth || windowHeight != window.innerHeight ) {
+
+		windowWidth = window.innerWidth;
+		windowHeight = window.innerHeight;
+
+		renderer.setSize( windowWidth, windowHeight );
+
+	}
 }
 
 // start of everything :O

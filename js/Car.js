@@ -176,7 +176,6 @@ THREE.Car = ( function ( ) {
 				this.steeringDecay(delta);
 			}
 
-//TODO change rotation when moving backward
 			// .lenght() is like sqrt( x^2 + z^2 )
 			carOrientation += root.getLinearVelocity().length() * this.turningRadius * 0.02 * wheelOrientation / 300;
 
@@ -210,20 +209,6 @@ THREE.Car = ( function ( ) {
 
 			var movementDelta = 0;
 			this.animateWheels(movementDelta);
-
-// old version - might be useful if we want to improve this one
-			// brakingDeceleration = this.brakePower;
-			// this.speed = THREE.Math.clamp( this.speed - delta * accelerationReverse, maxSpeedReverse, this.maxSpeed );
-
-			// if (this.speed > 0)
-			// 	acceleration = THREE.Math.clamp( acceleration - delta, - 1, 1 );
-			// 	// because another way car was moving backward, dont know why
-			// else if (this.speed > -1)
-			// 	this.speed = 0;
-			// 	// but if car has some speed backward breaks will work normally
-			// else{
-			// 	acceleration = THREE.Math.clamp( acceleration - delta, - 1, 1 );
-			// }
 		},
 
 		brakeX(){
@@ -247,33 +232,18 @@ THREE.Car = ( function ( ) {
 
 		moveBackward(delta){
 			var rotation_matrix = new THREE.Matrix4().extractRotation(root.matrix);
-			var force_vector = new THREE.Vector3(0 , 0, 0.25 ).applyMatrix4(rotation_matrix);
+			var force_vector = new THREE.Vector3(0 , 0, 0.35 ).applyMatrix4(rotation_matrix);
 			root.applyCentralImpulse(force_vector);
 			this.limitSpeed();
 
 			var movementDelta = root.getLinearVelocity().length() / 600;
 			this.animateWheels(movementDelta);
-
-//oldie
-			// // braking if car is moving
-			// if (this.speed > 1){
-			// 	// breaking
-			// 	this.brake(delta);
-
-			// 	// nothing - something like car speed resistance
-			// 	this.speedDecay(delta);
-			// }
-
-			// else{
-			// 	this.speed = THREE.Math.clamp( this.speed - delta * accelerationReverse, maxSpeedReverse, this.maxSpeed );
-			// 	acceleration = THREE.Math.clamp( acceleration - delta, - 1, 1 );
-			// }
 		},
 
 
 		moveForward(delta){
 			var rotation_matrix = new THREE.Matrix4().extractRotation(root.matrix);
-			var force_vector = new THREE.Vector3(0 , 0, -0.5 ).applyMatrix4(rotation_matrix);
+			var force_vector = new THREE.Vector3(0 , 0, -0.6 ).applyMatrix4(rotation_matrix);
 			root.applyCentralImpulse(force_vector);
 			this.limitSpeed();
 
