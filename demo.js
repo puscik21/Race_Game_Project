@@ -82,6 +82,10 @@ var views = [
 	}
 ];
 
+var raceTrack;
+
+var track;
+
 'use strict';
 Physijs.scripts.worker = 'js/physics/physijs_worker.js';
 Physijs.scripts.ammo = 'ammo.js';
@@ -100,7 +104,7 @@ function init(){
 		}
 	);
 	// making fog
-	scene.fog = new THREE.Fog( 0xd7cbb1, 1, 160 );
+	// scene.fog = new THREE.Fog( 0xd7cbb1, 1, 160 );
 
 	// camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 1000);
 
@@ -137,7 +141,7 @@ function init(){
 	box.position.z += 50;
 	box.setCcdMotionThreshold(1);
 	box.setCcdSweptSphereRadius(0.2);
-	scene.add(box);
+	// scene.add(box);
 
 	// by default ground is created in Y axis
 	ground.rotation.x = - Math.PI / 2;
@@ -151,7 +155,7 @@ function init(){
 	grid.material.opacity = 0.2;
 	grid.material.depthWrite = false;
 	grid.material.transparent = true;
-	scene.add( grid );
+	// scene.add( grid );
 
 
 	// global light 
@@ -176,6 +180,7 @@ function init(){
 	shadowLight.shadow.bias = -0.025;
 
 	lightHolder.add( shadowLight, shadowLight.target );
+	scene.add(lightHolder);
 	
 
 	// create background skybox
@@ -206,6 +211,53 @@ function init(){
 	});
 
 
+	// track = new Track();
+	// track.loadTrack("Mountain");
+
+	THREE.DRACOLoader.setDecoderPath( 'js/libs/draco/' );
+	var loader = new THREE.GLTFLoader();
+	loader.setDRACOLoader( new THREE.DRACOLoader() );
+
+	loader.load( 'models/gltf/MountainValley_Track.glb', function( track ) {
+
+		var model = track.scene.children[ 0 ];
+		model.position.y += 0.5;
+
+		model.traverse( function ( child ) {
+
+			if ( child.isMesh  ) {
+				child.castShadow = true;
+				child.receiveShadow = true;
+				child.material.envMap = envMap;
+			}
+		} );
+
+		scene.add(model);
+	});
+
+	// THREE.DRACOLoader.setDecoderPath( 'js/libs/draco/' );
+	// var loader = new THREE.GLTFLoader();
+	// loader.setDRACOLoader( new THREE.DRACOLoader() );
+
+	// loader.load( 'models/gltf/Mountain_Street.glb', function( gltf ) {
+		
+	// 	model = gltf.scene.children[ 0 ];
+		
+	// 	model.traverse( function ( child ) {
+
+	// 		if ( child.isMesh  ) {
+	// 			child.castShadow = true;
+	// 			child.receiveShadow = true;
+	// 			child.material.envMap = envMap;
+	// 		}
+	// 	} );
+
+	// 	scene.add(model);
+	// });
+
+
+
+
 
 
 	renderer = new THREE.WebGLRenderer( { antialias: true } );
@@ -227,8 +279,8 @@ function init(){
 
 	var mat2 = Physijs.createMaterial(
 		new THREE.MeshLambertMaterial({ color: 0xff0000, opacity: 1, transparent: true }),
-		.9, // low friction
-		.3 // high restitution
+		.9, // friction
+		.3 // restitution
 	);
 
 	var box2 = new THREE.CubeGeometry( 2, 1, 4 );
@@ -284,7 +336,7 @@ function initCar(){
 		carModel.position.set(0, 10, -50);
 		
 		var model = gltf.scene.children[ 0 ];
-		model.position.y -= 0.5;
+		// model.position.y -= 0.5;
 		carModel.add(model);
 		// add lightHolder to car so that the shadow will track the car as it moves
 		// carModel.add( lightHolder );
@@ -348,10 +400,10 @@ function initCar2(){
 		carModel2.position.set(-6.5, 10, -50);
 		
 		var model = gltf.scene.children[ 0 ];
-		model.position.y -= 0.5;
+		// model.position.y -= 0.5;
 		carModel2.add(model);
 		// add lightHolder to car so that the shadow will track the car as it moves
-		// carModel2.add( lightHolder );
+
 		carModel2.position.x += 5;
 
 		car2.setModel( carModel2 );
